@@ -1,0 +1,96 @@
+@startuml AttendanceManagementSystem
+
+skinparam classAttributeIconSize 0
+skinparam defaultFontName "TakaoPGothic"
+
+package "Controller" {
+    class MenuController {
+        - authService: AuthenticationService
+        - session: UserSession
+        - attendanceService: AttendanceService
+        - reportGen: MonthlyReportGenerator
+        + run(): void
+    }
+}
+
+package "Authentication and Session" {
+    class AuthenticationService {
+        + login(username: String, password: String): boolean
+        + logout(): void
+    }
+    class UserSession {
+        - userId: String
+        - valid: boolean
+        + start(userId: String): void
+        + destroy.(): void
+        + isValid(): boolean
+    }
+    MenuController --> AuthenticationService
+    MenuController --> UserSession
+}
+
+package "Time Related" {
+    interface TimeProvider {
+        + getCurrentTime(): DateTime
+    }
+    class SystemTimeProvider {
+        + getCurrentTime(): DateTime
+    }
+    class ClockDisplay {
+        - timeProvider: TimeProvider
+        + display(): void
+    }
+    TimeProvider <|.. SystemTimeProvider
+    ClockDisplay --> TimeProvider
+    MenuController --> ClockDisplay
+}
+
+package "Attendance Related" {
+    class AttendanceRecord {
+        - userId: String
+        - startTime: DateTime
+        - endTime: DateTime
+        - breakMinutes: int
+    }
+    class AttendanceRepository {
+        + findForMonth(userId: String, year: int, month: int): List<AttendanceRecord>
+        + save(record: AttendanceRecord): void
+        + hasRecordForDate(userId: String, date: DateTime): boolean
+    }
+    class AttendanceService {
+        - timeProvider: TimeProvider
+        - repo: AttendanceRepository
+        - breakPolicy: BreakPolicy
+        + clockIn(userId: String): void
+        + clockOut(userId: String): void
+        + editRecord(record: AttendanceRecord): void
+        + finalizeDailyAttendance(): int
+    }
+    class BreakPolicy {
+        + calculate(start: DateTime, end: DateTime): int
+    }
+    AttendanceService --> TimeProvider
+    AttendanceService -right-> AttendanceRepository
+    AttendanceService --> BreakPolicy
+    AttendanceRepository --> AttendanceRecord
+    AttendanceService --> AttendanceRecord
+    AttendanceService --> UserSession
+}
+
+package "Report Generation" {
+    class WorkTimeSummary {
+        - totalWorkHours: double
+        - breakMinutes: int
+        - actualWorkHours: double
+    }
+    class MonthlyReportGenerator {
+        + generate(userId: String, year: int, month: int): WorkTimeSummary
+    }
+    MonthlyReportGenerator --> AttendanceRepository
+    MonthlyReportGenerator --> WorkTimeSummary
+}
+
+MenuController --> AttendanceService
+MenuController --> MonthlyReportGenerator
+
+@enduml

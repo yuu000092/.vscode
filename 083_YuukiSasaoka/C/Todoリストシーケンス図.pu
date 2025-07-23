@@ -1,0 +1,219 @@
+@startuml
+skinparam sequence {
+    ArrowColor DarkSlateGray
+    LifeLineBorderColor DimGray
+    LifeLineBackgroundColor AliceBlue
+    ActorBorderColor DarkSlateGray
+    ActorBackgroundColor LightSteelBlue
+    ParticipantBorderColor DarkSlateGray
+    ParticipantBackgroundColor LightBlue
+    ParticipantFontSize 12
+    ActorFontSize 12
+    ArrowFontSize 11
+    GroupBorderColor DarkSlateGray
+    GroupBackgroundColor Lavender
+    DividerBorderColor DarkSlateGray
+    DividerBackgroundColor LightGray
+    DividerFontSize 13
+    DividerFontStyle bold
+}
+
+skinparam title {
+    FontSize 16
+    FontStyle bold
+    FontColor DarkSlateGray
+}
+
+skinparam note {
+    BackgroundColor LightYellow
+    BorderColor DarkSlateGray
+}
+
+title ToDoリスト シーケンス図  
+actor ユーザー as U  
+    participant "ToDoリスト\n(アプリ)" as App  
+    participant "テキストファイル\n(データ)" as File  
+
+== タスク追加 ==
+U -> App       : タスク追加を選択 
+activate App  
+    activate U #LightBlue
+    U -> App       : タスク内容を入力  
+    deactivate U
+    App -> App     : 入力データ検証
+    activate App #LightGray
+    deactivate App
+    App -> File    : 既存タスクを読み込む  
+    activate File  
+    File -> File   : ファイル読み込み処理
+    activate File #LightGray
+    deactivate File
+    File --> App   : タスク一覧  
+    deactivate File  
+
+    App -> App     : タスクリスト処理
+    activate App #LightGray
+    deactivate App
+    App -> File    : 新規タスクを書き込む  
+    activate File  
+    File -> File   : ファイル書き込み処理
+    activate File #LightGray
+alt 書き込み成功  
+    File -> File   : 保存処理
+    activate File #DarkGray
+    deactivate File
+    File --> App   : 保存完了  
+    App -> App     : 成功処理
+    activate App #LightGray
+    App -> App     : 追加成功を画面表示  
+    deactivate App
+else 書き込み失敗  
+    File -> File   : エラーハンドリング
+    activate File #DarkGray
+    deactivate File
+    File --> App   : 保存失敗  
+    App -> App     : エラー処理
+    activate App #LightGray
+    App -> App     : エラーを画面表示  
+    deactivate App
+end  
+    deactivate File
+    deactivate File  
+deactivate App  
+
+== タスク削除 ==
+U -> App       : タスク削除を選択 
+activate App   
+    activate U #LightBlue
+    U -> App       : 削除番号を入力  
+    deactivate U 
+    App -> App     : 入力番号検証
+    activate App #LightGray
+    deactivate App
+    App -> File    : 全タスクを読み込む  
+    activate File  
+    File -> File   : ファイル読み込み処理
+    activate File #LightGray
+    deactivate File
+    File --> App   : タスク一覧  
+    deactivate File  
+
+    App -> App     : 削除対象検索
+    activate App #LightGray
+    deactivate App
+    App -> File    : 指定タスクを削除  
+    activate File  
+    File -> File   : データ削除処理
+    activate File #LightGray
+alt 削除成功  
+    File -> File   : ファイル更新処理
+    activate File #DarkGray
+    deactivate File
+    File --> App   : 削除完了  
+    App -> App     : 成功処理
+    activate App #LightGray
+    App -> App     : 削除成功を画面表示  
+    deactivate App
+else 削除失敗  
+    File -> File   : エラーハンドリング
+    activate File #DarkGray
+    deactivate File
+    File --> App   : 削除失敗  
+    App -> App     : エラー処理
+    activate App #LightGray
+    App -> App     : エラーを画面表示  
+    deactivate App
+end  
+    deactivate File
+    deactivate File  
+deactivate App  
+
+== タスク一覧表示 ==
+U -> App :タスク一覧表示を選択
+activate App
+    App -> File    : 全タスクを読み込む
+    activate File
+    File -> File   : ファイル読み込み処理
+    activate File #LightGray
+    deactivate File
+    File --> App   : タスク一覧データ
+    deactivate File
+
+App -> App     : データ整形処理
+    activate App #LightGray
+    deactivate App
+App -> App     : 一覧を画面表示
+activate App #LightGray
+    deactivate App
+deactivate App  
+
+
+
+== タスク編集 ==
+U -> App       : 編集を選択
+    activate U #LightBlue
+activate App
+U -> App       : 編集したいタスク番号を入力
+    deactivate U
+    App -> App     : 入力番号検証
+    activate App #LightGray
+    deactivate App
+
+    App -> File    : タスク一覧を読み込み
+    activate File
+    File -> File   : ファイル読み込み処理
+    activate File #LightGray
+    deactivate File
+    File --> App   : タスクリスト
+    deactivate File
+
+    App -> App     : 番号が有効かチェック
+    activate App #LightGray
+    deactivate App
+
+alt 番号が有効
+    
+    U -> App       : 新しいタスク内容を入力
+    App -> App     : 入力データ検証
+    activate App #LightGray
+    deactivate App
+    App -> App     : データ更新処理
+    activate App #LightGray
+    deactivate App
+    App -> File    : タスクリストを上書き保存
+    activate File
+    File -> File   : ファイル更新処理
+    activate File #LightGray
+    deactivate File
+    File --> App   : 保存完了
+    deactivate File
+    App -> App     : 成功処理
+    activate App #LightGray
+    App -> App     : 編集完了を画面表示
+    deactivate App
+else 番号が無効
+    App -> App     : エラー処理
+    activate App #LightGray
+    App -> App     : エラーメッセージを画面表示
+    deactivate App
+end
+deactivate App
+== システム終了 ==
+U -> App       : 終了を選択 
+activate App  
+    App -> App     : 終了処理開始
+    activate App #LightGray
+    deactivate App
+    App -> File    : ファイルを閉じる  
+    activate File  
+    File -> File   : ファイルクローズ処理
+    activate File #LightGray
+    deactivate File
+    File --> App   : クローズ完了  
+    deactivate File  
+    App -> App     : 終了メッセージ処理
+    activate App #LightGray
+    App -> App     : 終了メッセージを画面表示  
+    deactivate App
+deactivate App
+@enduml
