@@ -4,13 +4,15 @@
  * @author 笹岡優希
  * @date 2025/07/17
  */
-#ifndef ATTENDANCE_RECORD_H_
-#define ATTENDANCE_RECORD_H_
+#ifndef ATTENDANCE_REPOSITORY_H_
+#define ATTENDANCE_REPOSITORY_H_
 
+#include "AttendanceRecord.h"
+#include <vector>
+#include <ctime>
+#include <iomanip>
 #include <string>
-class IAttendRepository{
-
-};
+#include <iostream>
 
 /// 1日分の勤怠情報を保持する構造体（またはクラス）
 class AttendanceRecord {
@@ -40,4 +42,4 @@ private:
   time_t startTime();
 };
 
-#endif  // ATTENDANCE_RECORD_HPP
+#endif  // ATTENDANCE_REPOSITORY_H

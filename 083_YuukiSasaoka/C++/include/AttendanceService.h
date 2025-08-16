@@ -9,6 +9,7 @@
 
 #include "TimeProvider.h"
 #include "ClockDisplay.h"
+#include "BreakPolicy.h"
 #include <string>
 
 class IAttendanceService {
@@ -29,6 +30,7 @@ public:
 private:
     SystemTimeProvider provider;
     ClockDisplay Idisplay;
+    BreakPolicy breakPolicy;
 };
 
 #endif  // ATTENDANCE_SERVICE_H_
