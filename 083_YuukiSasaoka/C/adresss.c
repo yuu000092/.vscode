@@ -23,15 +23,16 @@ void load_csv(AddressRecord records[], int *count, int *next_id)
     FILE *fp = fopen(CSV_FILE, "r");
     if (!fp)
         return;
-
+    // 初期化
     char line[512];
+    // 1行ずつ読み込み
     while (fgets(line, sizeof(line), fp))
     {
 
         // 空行対策
         if (line[0] == '\n' || line[0] == '\r')
             continue;
-
+        // トークン分割
         AddressRecord rec;
         char *token = strtok(line, ",");
         if (!token)

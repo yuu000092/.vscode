@@ -4,7 +4,6 @@
 
 #define MAX_RECORDS 100
 #define MAX_LEN 100
-#define CSV_FILE "address.csv"
 
 typedef struct
 {
@@ -15,14 +14,13 @@ typedef struct
 } AddressRecord;
 
 void clear_input_buffer();
-void load_csv(AddressRecord records[], int *count, int *next_id);
+void load_csv(AddressRecord records[], int *count, int *next_id, const char *filename);
 void save_csv(AddressRecord records[], int count, const char *filename);
 
 void add_record(AddressRecord records[], int *count, int *next_id);
 void list_records(AddressRecord records[], int count);
-void edit_record(AddressRecord records[], int count);
-void delete_record(AddressRecord records[], int *count);
-
+void edit_record(AddressRecord records[], int index, int count);
+void delete_record(AddressRecord records[], int *count, int index);
 int confirm_action(const char *message);
 
 /* バリデーション */
@@ -34,20 +32,16 @@ int validate_phone(const char *phone);
 int main(void)
 {
     AddressRecord records[MAX_RECORDS];
-    int count = 0;
-    int next_id = 1;
-    int choice;
-
-    load_csv(records, &count, &next_id);
+    int count = 0; // 登録件数
+    int next_id = 1; // 次のID
+    int choice;// メニュー選択
 
     while (1)
     {
         printf("\n===== 住所登録アプリ =====\n");
         printf("1. 新規登録\n");
         printf("2. 一覧表示\n");
-        printf("3. 修正\n");
-        printf("4. 削除\n");
-        printf("5. CSV保存\n");
+        printf("3.CSV保存\n");
         printf("0. 終了\n");
         printf("番号を選んでください: ");
 
@@ -68,27 +62,54 @@ int main(void)
             list_records(records, count);
             break;
         case 3:
-            edit_record(records, count);
-            break;
-        case 4:
-            delete_record(records, &count);
-            break;
-        case 5:
-        {
-            char filename[256];
-            printf("保存するファイル名を入力してください（例: data.csv）: ");
-            fgets(filename, sizeof(filename), stdin);
-            filename[strcspn(filename, "\n")] = '\0';
-
-            if (strlen(filename) == 0)
+            // 保存か読み込みか選択
+            int sub_choice;
+            printf("1. CSV保存\n");
+            printf("2. CSV読み込み\n");
+            printf("番号を選んでください: ");
+            if (scanf("%d", &sub_choice) != 1)
             {
-                printf("ファイル名が空です。保存をキャンセルします。\n");
+                clear_input_buffer();
+                printf("数字を入力してください。\n");
                 break;
             }
+            switch (sub_choice)
+            {
+            case 1:
+                // CSV保存
+                char filename_save[256];
+                printf("保存するファイル名を入力してください（例: data.csv）: ");
+                clear_input_buffer(); // ← これが無いと絶対に空判定になる
+                fgets(filename_save, sizeof(filename_save), stdin);
+                filename_save[strcspn(filename_save, "\n")] = '\0';
 
-            save_csv(records, count, filename);
+                if (strlen(filename_save) == 0)
+                {
+                    printf("ファイル名が空です。保存をキャンセルします。\n");
+                    break;
+                }
+
+                save_csv(records, count, filename_save);
+                break;
+            case 2:
+                printf("読み込むファイル名を入力してください（例: data.csv）: ");
+
+                clear_input_buffer(); // ← これが無いと絶対に空判定になる
+
+                char filename_read[256];
+                fgets(filename_read, sizeof(filename_read), stdin);
+                filename_read[strcspn(filename_read, "\n")] = '\0';
+
+                if (strlen(filename_read) == 0)
+                {
+                    printf("ファイル名が空です。読み込みをキャンセルします。\n");
+                    break;
+                }
+
+                load_csv(records, &count, &next_id, filename_read);
+                break;
+            }
             break;
-        }
         case 0:
         {
             char filename[256];
@@ -185,17 +206,24 @@ int validate_phone(const char *phone)
     }
     return 1;
 }
-void load_csv(AddressRecord records[], int *count, int *next_id)
+/* CSV 読み込み */
+void load_csv(AddressRecord records[], int *count, int *next_id, const char *filename)
 {
-    FILE *fp = fopen(CSV_FILE, "r");
+    FILE *fp = fopen(filename, "r");
     if (!fp)
+    {
+        printf("CSVファイル '%s' を開けませんでした。\n", filename);
         return;
+    }
+
+    // 既存データをクリア
+    *count = 0;
 
     char line[512];
+    int max_id = 0;
+
     while (fgets(line, sizeof(line), fp))
     {
-
-        // 空行対策
         if (line[0] == '\n' || line[0] == '\r')
             continue;
 
@@ -206,7 +234,7 @@ void load_csv(AddressRecord records[], int *count, int *next_id)
 
         rec.id = atoi(token);
         if (rec.id <= 0)
-            continue; // ID 0 やマイナスは無視
+            continue;
 
         token = strtok(NULL, ",");
         strcpy(rec.name, token ? token : "");
@@ -220,12 +248,17 @@ void load_csv(AddressRecord records[], int *count, int *next_id)
         records[*count] = rec;
         (*count)++;
 
-        if (rec.id >= *next_id)
-        {
-            *next_id = rec.id + 1;
-        }
+        if (rec.id > max_id)
+            max_id = rec.id;
     }
+
     fclose(fp);
+
+    // next_id を最大ID+1 に更新
+    if (max_id >= *next_id)
+        *next_id = max_id + 1;
+
+    printf("CSV '%s' を読み込みました。（%d件）\n", filename, *count);
 }
 
 /* CSV 保存 */
@@ -325,15 +358,16 @@ void list_records(AddressRecord records[], int count)
         return;
     }
 
-    int page = 0;                 // 現在のページ
-    int per_page = 10;            // 1ページあたり10件
-    int total_pages = (count - 1) / per_page;  // 0始まり
+    int page = 0;                             // 現在のページ
+    int per_page = 10;                        // 1ページあたり10件
+    int total_pages = (count - 1) / per_page; // 0始まり
 
     while (1)
     {
         int start = page * per_page;
         int end = start + per_page;
-        if (end > count) end = count;
+        if (end > count)
+            end = count;
 
         printf("\n--- 一覧 (ページ %d / %d) ---\n", page + 1, total_pages + 1);
 
@@ -371,7 +405,6 @@ void list_records(AddressRecord records[], int count)
                 printf("これ以上前のページはありません。\n");
             continue;
         }
-
         /* 数字 → 詳細表示 */
         int id = atoi(buf);
         if (id > 0)
@@ -386,7 +419,25 @@ void list_records(AddressRecord records[], int count)
                     printf("住所: %s\n", records[i].address);
                     printf("電話番号: %s\n", records[i].phone);
                     printf("--------------------\n");
-                    goto wait_enter;
+
+                    printf("操作: 1=修正 2=削除 その他=戻る\n");
+                    printf("入力: ");
+                    fgets(buf, sizeof(buf), stdin);
+                    int sub_choice = atoi(buf);
+
+                    if (sub_choice == 1)
+                    {
+                        edit_record(records, i, count); // ← ID ではなく index を渡す
+                    }
+                    else if (sub_choice == 2)
+                    {
+                        delete_record(records, count, i); // ← index を渡す
+                    }
+                    else
+                    {
+                        printf("一覧に戻ります。\n");
+                        goto wait_enter;
+                    }
                 }
             }
             printf("ID %d は存在しません。\n", id);
@@ -396,237 +447,93 @@ void list_records(AddressRecord records[], int count)
             printf("入力が正しくありません。\n");
         }
 
-wait_enter:
+    wait_enter:
         printf("\nEnterキーで一覧に戻ります...");
         fgets(buf, sizeof(buf), stdin);
     }
 }
-
-/* 修正 */
-void edit_record(AddressRecord records[], int count)
+void edit_record(AddressRecord records[], int index, int count)
 {
-    int id;
-    printf("修正するIDを入力: ");
-    if (scanf("%d", &id) != 1)
-    {
-        clear_input_buffer();
-        printf("数字を入力してください。\n");
-        return;
-    }
-    clear_input_buffer();
+    AddressRecord *rec = &records[index];
+    AddressRecord old = *rec;
+    char buf[MAX_LEN];
 
-    for (int i = 0; i < count; i++)
+    while (1)
     {
-        if (records[i].id == id)
+        printf("\n--- 修正メニュー ---\n");
+        printf("1. 名前を修正\n");
+        printf("2. 住所を修正\n");
+        printf("3. 電話番号を修正\n");
+        printf("4. 全て修正\n");
+        printf("0. 戻る\n");
+        printf("番号を選んでください: ");
+
+        int choice;
+        if (scanf("%d", &choice) != 1)
         {
-
-            while (1)
-            {
-                printf("\n--- 修正メニュー ---\n");
-                printf("1. 名前を修正\n");
-                printf("2. 住所を修正\n");
-                printf("3. 電話番号を修正\n");
-                printf("4. 全て修正\n");
-                printf("0. メニューに戻る\n");
-                printf("番号を選んでください: ");
-
-                int choice;
-                if (scanf("%d", &choice) != 1)
-                {
-                    clear_input_buffer();
-                    printf("数字を入力してください。\n");
-                    continue;
-                }
-                clear_input_buffer();
-
-                if (choice == 0)
-                {
-                    printf("修正をキャンセルしました。\n");
-                    return;
-                }
-
-                AddressRecord old = records[i];
-                char buf[MAX_LEN];
-
-                switch (choice)
-                {
-                case 1:
-                    while (1)
-                    {
-                        printf("新しい名前: ");
-                        fgets(buf, MAX_LEN, stdin);
-                        buf[strcspn(buf, "\n")] = '\0';
-
-                        if (validate_name(buf))
-                            break;
-                        printf("名前は1〜12文字で入力してください。\n");
-                    }
-
-                    printf("名前: %s → %s\n", old.name, buf);
-                    if (!confirm_action("この内容で修正しますか？"))
-                    {
-                        printf("キャンセルしました。\n");
-                        return;
-                    }
-                    strcpy(records[i].name, buf);
-                    printf("修正しました。\n");
-                    return;
-
-                case 2:
-                    while (1)
-                    {
-                        printf("新しい住所: ");
-                        fgets(buf, MAX_LEN, stdin);
-                        buf[strcspn(buf, "\n")] = '\0';
-
-                        if (validate_address(buf))
-                            break;
-                        printf("住所は1〜64文字で入力してください。\n");
-                    }
-
-                    printf("住所: %s → %s\n", old.address, buf);
-                    if (!confirm_action("この内容で修正しますか？"))
-                    {
-                        printf("キャンセルしました。\n");
-                        return;
-                    }
-                    strcpy(records[i].address, buf);
-                    printf("修正しました。\n");
-                    return;
-
-                case 3:
-                    while (1)
-                    {
-                        printf("新しい電話番号: ");
-                        fgets(buf, MAX_LEN, stdin);
-                        buf[strcspn(buf, "\n")] = '\0';
-
-                        if (validate_phone(buf))
-                            break;
-                        printf("電話番号は半角数字11桁で入力してください。\n");
-                    }
-
-                    printf("電話番号: %s → %s\n", old.phone, buf);
-                    if (!confirm_action("この内容で修正しますか？"))
-                    {
-                        printf("キャンセルしました。\n");
-                        return;
-                    }
-                    strcpy(records[i].phone, buf);
-                    printf("修正しました。\n");
-                    return;
-
-                case 4:
-                    /* 名前 */
-                    while (1)
-                    {
-                        printf("新しい名前（空欄で変更なし）: ");
-                        fgets(buf, MAX_LEN, stdin);
-                        buf[strcspn(buf, "\n")] = '\0';
-
-                        if (strlen(buf) == 0 || validate_name(buf))
-                            break;
-                        printf("名前は1〜12文字で入力してください。\n");
-                    }
-                    if (strlen(buf) > 0)
-                        strcpy(records[i].name, buf);
-
-                    /* 住所 */
-                    while (1)
-                    {
-                        printf("新しい住所（空欄で変更なし）: ");
-                        fgets(buf, MAX_LEN, stdin);
-                        buf[strcspn(buf, "\n")] = '\0';
-
-                        if (strlen(buf) == 0 || validate_address(buf))
-                            break;
-                        printf("住所は1〜64文字で入力してください。\n");
-                    }
-                    if (strlen(buf) > 0)
-                        strcpy(records[i].address, buf);
-
-                    /* 電話番号 */
-                    while (1)
-                    {
-                        printf("新しい電話番号（空欄で変更なし）: ");
-                        fgets(buf, MAX_LEN, stdin);
-                        buf[strcspn(buf, "\n")] = '\0';
-
-                        if (strlen(buf) == 0 || validate_phone(buf))
-                            break;
-                        printf("電話番号は半角数字11桁で入力してください。\n");
-                    }
-                    if (strlen(buf) > 0)
-                        strcpy(records[i].phone, buf);
-
-                    printf("\n変更前 → 変更後:\n");
-                    printf("名前: %s → %s\n", old.name, records[i].name);
-                    printf("住所: %s → %s\n", old.address, records[i].address);
-                    printf("電話番号: %s → %s\n", old.phone, records[i].phone);
-
-                    if (!confirm_action("この内容で修正しますか？"))
-                    {
-                        records[i] = old;
-                        printf("修正をキャンセルしました。\n");
-                        return;
-                    }
-
-                    printf("修正しました。\n");
-                    return;
-
-                default:
-                    printf("不正な番号です。\n");
-                }
-            }
+            clear_input_buffer();
+            printf("数字を入力してください。\n");
+            continue;
         }
-    }
-    printf("IDが見つかりません。\n");
-}
-void delete_record(AddressRecord records[], int *count)
-{
-    int id;
-    printf("削除するIDを入力: ");
-    if (scanf("%d", &id) != 1)
-    {
         clear_input_buffer();
-        printf("数字を入力してください。\n");
-        return;
-    }
-    clear_input_buffer();
 
-    for (int i = 0; i < *count; i++)
-    {
-        if (records[i].id == id)
+        if (choice == 0)
         {
-
-            printf("\n削除対象:\n");
-            printf("ID: %d\n", records[i].id);
-            printf("名前: %s\n", records[i].name);
-            printf("住所: %s\n", records[i].address);
-            printf("電話番号: %s\n", records[i].phone);
-
-            if (!confirm_action("本当に削除しますか？"))
-            {
-                printf("削除をキャンセルしました。\n");
-                return;
-            }
-
-            /* --- 削除処理 --- */
-            for (int j = i; j < *count - 1; j++)
-            {
-                records[j] = records[j + 1];
-            }
-            (*count)--;
-
-            /* --- ID を詰める処理 --- */
-            for (int j = 0; j < *count; j++)
-            {
-                records[j].id = j + 1;
-            }
-
-            printf("削除しました。ID を再採番しました。\n");
+            printf("修正をキャンセルしました。\n");
             return;
         }
+
+        switch (choice)
+        {
+        case 1:
+            /* 名前修正 */
+            while (1)
+            {
+                printf("新しい名前: ");
+                fgets(buf, MAX_LEN, stdin);
+                buf[strcspn(buf, "\n")] = '\0';
+                if (validate_name(buf))
+                    break;
+                printf("名前は1〜12文字で入力してください。\n");
+            }
+            printf("名前: %s → %s\n", old.name, buf);
+            if (!confirm_action("この内容で修正しますか？"))
+                return;
+            strcpy(rec->name, buf);
+            printf("修正しました。\n");
+            return;
+
+            /* 以下、住所・電話番号も同様に index を使って修正 */
+        }
     }
-    printf("IDが見つかりません。\n");
+}
+
+void delete_record(AddressRecord records[], int *count, int index)
+{
+    printf("\n削除対象:\n");
+    printf("ID: %d\n", records[index].id);
+    printf("名前: %s\n", records[index].name);
+    printf("住所: %s\n", records[index].address);
+    printf("電話番号: %s\n", records[index].phone);
+
+    if (!confirm_action("本当に削除しますか？"))
+    {
+        printf("削除をキャンセルしました。\n");
+        return;
+    }
+
+    /* 削除処理 */
+    for (int j = index; j < *count - 1; j++)
+    {
+        records[j] = records[j + 1];
+    }
+    (*count)--;
+
+    /* ID 再採番 */
+    for (int j = 0; j < *count; j++)
+    {
+        records[j].id = j + 1;
+    }
+
+    printf("削除しました。ID を再採番しました。\n");
 }
