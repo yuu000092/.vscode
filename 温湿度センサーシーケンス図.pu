@@ -1,0 +1,32 @@
+// ...existing code...
+@startuml
+title 温湿度センサーシーケンス図（6秒間隔で正常10回までループ）
+actor User
+participant "RaspberryPiController" as Controller
+participant "pigpioデーモン" as PIGPIO
+participant "DHT11センサー" as DHT11
+
+loop 正常完了が10回になるまで
+  Controller -> PIGPIO: GPIOピン初期化
+  PIGPIO --> Controller: 初期化完了
+
+  Controller -> DHT11: 温湿度データ取得要求
+  alt 正常応答
+    DHT11 --> Controller: 温湿度データ送信
+    Controller -> PIGPIO: GPIOピン解放
+    PIGPIO --> Controller: 解放完了
+    Controller --> User: 温湿度データ送信
+    note right of Controller: 成功カウント++
+  else エラー（センサー応答なし等）
+    DHT11 --> Controller: エラー
+    Controller -> PIGPIO: GPIOピン解放
+    PIGPIO --> Controller: 解放完了
+    Controller --> User: エラー通知（再試行）
+    note right of Controller: 成功カウントは増えない（再試行）
+  end
+
+  note right of Controller: 6秒待機
+end
+
+@enduml
+// ...existing code...
